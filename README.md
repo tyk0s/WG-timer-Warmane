@@ -17,5 +17,10 @@ Example of usage
 
 <img width="451" height="251" alt="image" src="https://github.com/user-attachments/assets/ad5f98fa-9fb1-4924-b62d-0454eb4bb201" />
 
+Example of WA
+
+<img width="242" height="58" alt="image" src="https://github.com/user-attachments/assets/3e1d4908-79ea-45c8-bc91-ac27c7bc53cf" />
+
+
 
 Cred to claude.ai that made this possible :)
