@@ -1,0 +1,309 @@
+
+-- ========================================
+-- WEAKAURA 4.0.0 WITH BUILT-IN THROTTLING
+-- Updates every second without lag
+-- ========================================
+
+-- ========================================
+-- CREATE NEW AURA
+-- ========================================
+-- 1. Open WeakAuras (/wa)
+-- 2. Click "New"
+-- 3. Choose "Icon" or "Progress Bar"
+-- 4. Give it a name (e.g. "WG Timer")
+
+-- ========================================
+-- TRIGGER TAB
+-- ========================================
+
+-- Trigger Type: Custom
+-- Check On: Every Frame (high CPU usage) - We fix the CPU issue in the code!
+
+-- Custom Trigger Code:
+function()
+    -- Initialize throttle timer if it doesn't exist
+    if not aura_env.initialized then
+        aura_env.lastUpdate = 0
+        aura_env.updateInterval = 1  -- Update every second
+        aura_env.lastStatus = "idle"
+        aura_env.warning20min = false
+        aura_env.status = "idle"
+        aura_env.time = 0
+        aura_env.endTime = 0
+        aura_env.initialized = true
+    end
+    
+    -- Throttle: Only update every second
+    local currentTime = GetTime()
+    if currentTime - aura_env.lastUpdate < aura_env.updateInterval then
+        return false  -- Skip this frame
+    end
+    
+    aura_env.lastUpdate = currentTime
+    
+    -- Read from WG_TIMER
+    if not WG_TIMER then
+        aura_env.status = "idle"
+        aura_env.time = 0
+        aura_env.endTime = 0
+        return true
+    end
+    
+    -- Copy data
+    local oldStatus = aura_env.status
+    aura_env.status = WG_TIMER.status or "idle"
+    aura_env.endTime = WG_TIMER.endTime or 0
+    
+    -- Calculate remaining time
+    if aura_env.endTime > 0 then
+        aura_env.time = math.max(0, aura_env.endTime - currentTime)
+    else
+        aura_env.time = 0
+    end
+    
+    -- === WARNINGS AND ANNOUNCEMENTS ===
+    
+    -- Check status changes
+    if oldStatus ~= aura_env.status then
+        if aura_env.status == "active" then
+            PlaySound("RaidWarning")
+            DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[WG] Battle has started!|r")
+            
+        elseif aura_env.status == "waiting" and oldStatus == "active" then
+            local mins = math.floor(aura_env.time / 60)
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cFF00FF00[WG] Battle ended. Next in %d minutes|r", mins))
+            -- Reset warning
+            aura_env.warning20min = false
+        end
+    end
+    
+    -- 20 minute warning (GUILD CHAT ANNOUNCE)
+    if aura_env.status == "waiting" and aura_env.endTime > 0 then
+        local time = aura_env.time
+        
+        -- Check if announce is enabled AND it's time for warning
+        if WG_TIMER.announceEnabled and time <= 1200 and time > 1190 and not aura_env.warning20min then
+            SendChatMessage("Wintergrasp battle in 20 minutes! Get ready to queue (queue opens in 5 min)!", "GUILD")
+            PlaySound("RaidWarning")
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[WG] 20 minute warning sent to guild chat!|r")
+            aura_env.warning20min = true
+        end
+    end
+    
+    return true
+end
+
+-- Custom Untrigger Code:
+function()
+    return false
+end
+
+-- ========================================
+-- DURATION INFO (If available)
+-- ========================================
+function()
+    if aura_env.endTime and aura_env.endTime > 0 then
+        local remaining = math.max(0, aura_env.endTime - GetTime())
+        return remaining, aura_env.time
+    end
+    return 0, 1
+end
+
+-- ========================================
+-- DISPLAY TAB - ICON VERSION
+-- ========================================
+
+-- Width: 64
+-- Height: 64
+
+-- Icon (Custom):
+function()
+    if not aura_env.status then
+        return "Interface\\Icons\\Achievement_Zone_Wintergrasp_01"
+    end
+    
+    if aura_env.status == "active" then
+        return "Interface\\Icons\\Achievement_Zone_Wintergrasp_01"
+    elseif aura_env.status == "waiting" then
+        return "Interface\\Icons\\INV_Misc_PocketWatch_01"
+    else
+        return "Interface\\Icons\\Achievement_Zone_Wintergrasp_01"
+    end
+end
+
+-- Display Text: Enable checkbox
+-- Text (Custom Code):
+function()
+    if not aura_env.endTime then 
+        return "WG\nLoading..." 
+    end
+    
+    -- Calculate time in realtime (for smooth countdown between updates)
+    local time = 0
+    if aura_env.endTime > 0 then
+        time = math.max(0, aura_env.endTime - GetTime())
+    end
+    
+    local hours = math.floor(time / 3600)
+    local mins = math.floor((time % 3600) / 60)
+    local secs = math.floor(time % 60)
+    
+    local timeStr
+    if time == 0 then
+        timeStr = "--:--"
+    elseif hours > 0 then
+        timeStr = string.format("%dh %02dm", hours, mins)
+    elseif mins > 0 then
+        timeStr = string.format("%d:%02d", mins, secs)
+    else
+        timeStr = string.format("0:%02d", secs)
+    end
+    
+    -- Color-coded text based on status
+    if aura_env.status == "active" then
+        return string.format("|cFFFF0000ACTIVE|r\n%s", timeStr)
+    elseif aura_env.status == "waiting" then
+        -- Different color based on time
+        if time <= 300 then
+            return string.format("|cFFFF9900SOON|r\n%s", timeStr)  -- Orange < 5 min
+        elseif time <= 600 then
+            return string.format("|cFFFFFF00NEXT|r\n%s", timeStr)  -- Yellow < 10 min
+        else
+            return string.format("|cFF00FF00NEXT|r\n%s", timeStr)  -- Green
+        end
+    else
+        return "|cFFFFFF00WG|r\nNo Data"
+    end
+end
+
+-- Font: Friz Quadrata TT
+-- Size: 14
+-- Flags: OUTLINE
+-- Color: White (255, 255, 255)
+
+-- ========================================
+-- ALTERNATIVE: PROGRESS BAR VERSION
+-- ========================================
+
+-- Display Type: Progress Bar
+-- Orientation: Horizontal
+-- Width: 200
+-- Height: 30
+
+-- Bar Texture: Blizzard
+-- Background Texture: Blizzard
+-- Background Color: Black (0, 0, 0, 0.5)
+
+-- Foreground Color (Custom):
+function()
+    if not aura_env.status then return 0.5, 0.5, 0.5, 1 end
+    
+    if aura_env.status == "active" then
+        return 1, 0, 0, 1  -- Red
+    elseif aura_env.status == "waiting" then
+        local time = 0
+        if aura_env.endTime > 0 then
+            time = math.max(0, aura_env.endTime - GetTime())
+        end
+        
+        if time <= 300 then
+            return 1, 0.5, 0, 1  -- Orange (< 5 min)
+        elseif time <= 600 then
+            return 1, 1, 0, 1  -- Yellow (< 10 min)
+        else
+            return 0, 1, 0, 1  -- Green
+        end
+    else
+        return 0.5, 0.5, 0.5, 1  -- Gray
+    end
+end
+
+-- Text on Bar: Enable
+-- Text (Custom):
+function()
+    if not aura_env.endTime then return "Wintergrasp - Loading..." end
+    
+    local time = 0
+    if aura_env.endTime > 0 then
+        time = math.max(0, aura_env.endTime - GetTime())
+    end
+    
+    local hours = math.floor(time / 3600)
+    local mins = math.floor((time % 3600) / 60)
+    local secs = math.floor(time % 60)
+    
+    local timeStr
+    if hours > 0 then
+        timeStr = string.format("%d:%02d:%02d", hours, mins, secs)
+    else
+        timeStr = string.format("%d:%02d", mins, secs)
+    end
+    
+    if aura_env.status == "active" then
+        return "WG Battle Active - " .. timeStr
+    elseif aura_env.status == "waiting" then
+        return "Next WG Battle - " .. timeStr
+    else
+        return "Wintergrasp - No Data"
+    end
+end
+
+-- ========================================
+-- CONDITIONS TAB (For visual effects)
+-- ========================================
+
+-- Condition 1: "Battle Active"
+-- Custom Check:
+function()
+    return aura_env.status == "active"
+end
+-- Changes: 
+-- Border → Use Border (enable)
+-- Border Color → Red (255, 0, 0)
+-- Glow → Enable
+
+-- Condition 2: "Waiting - Less than 10 min"
+-- Custom Check:
+function()
+    if not aura_env.endTime or aura_env.endTime == 0 then return false end
+    local time = aura_env.endTime - GetTime()
+    return aura_env.status == "waiting" and time <= 600 and time > 300
+end
+-- Changes:
+-- Glow → Enable
+-- Glow Color → Yellow (255, 255, 0)
+
+-- Condition 3: "Waiting - Less than 5 min"
+-- Custom Check:
+function()
+    if not aura_env.endTime or aura_env.endTime == 0 then return false end
+    local time = aura_env.endTime - GetTime()
+    return aura_env.status == "waiting" and time <= 300
+end
+-- Changes:
+-- Glow → Enable
+-- Glow Color → Orange (255, 165, 0)
+-- Animations → Pulse (or Bounce)
+
+-- ========================================
+-- LOAD CONDITIONS (Optional)
+-- ========================================
+-- None - always show
+-- Or:
+-- Zone → Wintergrasp (only show in WG)
+
+-- ========================================
+-- SUMMARY
+-- ========================================
+-- This setup uses "Every Frame" BUT with built-in throttling
+-- that limits updates to once per second.
+-- 
+-- CPU usage: Very low (comparable to "every 1 second")
+-- Update frequency: Every second
+-- Display: Smooth countdown thanks to GetTime() in display code
+--
+-- GUILD ANNOUNCE:
+-- - Default: OFF
+-- - Use: /wgt announce on  (to enable)
+-- - Use: /wgt announce off (to disable)
+-- - Use: /wgt announce     (to check status)

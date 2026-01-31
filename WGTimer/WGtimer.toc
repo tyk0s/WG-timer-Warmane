@@ -1,0 +1,4 @@
+## Interface: 30300
+## Title: WGTimer
+## Notes: Exposes Wintergrasp timer to WeakAuras
+WGTimer.lua
