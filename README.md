@@ -16,3 +16,6 @@ This project requires **World of Warcraft: Wrath of the Lich King 3.3.5a** and a
 Example of usage
 
 <img width="451" height="251" alt="image" src="https://github.com/user-attachments/assets/ad5f98fa-9fb1-4924-b62d-0454eb4bb201" />
+
+
+Cred to claude.ai that made this possible :)
